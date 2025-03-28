@@ -1,11 +1,11 @@
 # CTFd LED Controller
 
-This project controls 15 NeoPixels connected to a Raspberry Pi 4, responding to webhooks from CTFd to simulate satellite states.
+This project controls NeoPixels connected to a Raspberry Pi 4, responding to webhooks from CTFd to simulate satellite states. By default, it's configured for 10 satellites, but this can be modified in the code.
 
 ## Hardware Requirements
 
 - Raspberry Pi 4
-- 15 NeoPixels (WS2812B)
+- NeoPixels (WS2812B) - default 10, but configurable
 - Power supply for the NeoPixels (5V)
 - Jumper wires
 - Optional: Level shifter (if needed for your specific setup)
@@ -30,7 +30,12 @@ This project controls 15 NeoPixels connected to a Raspberry Pi 4, responding to 
    PORT=5000
    ```
 
-3. Enable SPI and PWM on your Raspberry Pi:
+3. Configure the number of satellites (optional):
+   - Open `led_controller.py`
+   - Find the `SATELLITE_COUNT` variable at the top of the file
+   - Change the value to match your number of satellites/LEDs
+
+4. Enable SPI and PWM on your Raspberry Pi:
    ```bash
    sudo raspi-config
    ```
@@ -66,7 +71,7 @@ The application includes two important features for monitoring and maintaining s
 
 Example log entries:
 ```
-2024-03-14 10:00:00,000 - INFO - Starting Satellite LED Controller
+2024-03-14 10:00:00,000 - INFO - Starting Satellite LED Controller with 10 satellites
 2024-03-14 10:00:00,100 - INFO - Loaded state from file: {'transmitting': False, 'solved': False}
 2024-03-14 10:00:00,200 - INFO - Server starting on port 5000
 2024-03-14 10:05:00,000 - INFO - Received webhook: {'type': 'transmission_start'}
@@ -90,7 +95,7 @@ Example log entries:
 ```json
 {
     "type": "challenge_solved",
-    "led_index": 0  // Index of the LED (0-14)
+    "led_index": 0  // Index of the LED (0-9 for default 10 satellites)
 }
 ```
 
@@ -98,7 +103,7 @@ Example log entries:
 ```json
 {
     "type": "challenge_failed",
-    "led_index": 0  // Index of the LED (0-14)
+    "led_index": 0  // Index of the LED (0-9 for default 10 satellites)
 }
 ```
 
@@ -106,7 +111,7 @@ Example log entries:
 ```json
 {
     "type": "add_transmission_time",
-    "led_index": 0,  // Index of the LED (0-14)
+    "led_index": 0,  // Index of the LED (0-9 for default 10 satellites)
     "transmission_times": [
         ["2023/05/25 10:25:44", "2023/05/25 10:35:28"],
         ["2023/05/25 11:00:00", "2023/05/25 11:30:00"]
@@ -202,3 +207,7 @@ This will return the current satellite states for all LEDs, including their solv
    - Verify the date/time format is correct (YYYY/MM/DD HH:MM:SS)
    - Check that the system time is correctly set
    - Ensure transmission times are in chronological order
+
+5. For LED count issues:
+   - Verify that the `SATELLITE_COUNT` in `led_controller.py` matches your actual number of LEDs
+   - Ensure all LED indices in webhook calls are within the valid range (0 to SATELLITE_COUNT-1)

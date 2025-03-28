@@ -19,7 +19,7 @@ logging.basicConfig(
 )
 
 # LED strip configuration
-LED_COUNT = 15
+SATELLITE_COUNT = 10  # Number of satellites/LEDs
 LED_PIN = 18  # GPIO18 (PWM0)
 LED_FREQ_HZ = 800000
 LED_DMA = 10
@@ -34,7 +34,7 @@ STATE_FILE = 'satellite_state.json'
 app = Flask(__name__)
 
 # Initialize NeoPixel strip
-strip = Adafruit_NeoPixel(LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, LED_BRIGHTNESS, LED_CHANNEL)
+strip = Adafruit_NeoPixel(SATELLITE_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, LED_BRIGHTNESS, LED_CHANNEL)
 strip.begin()
 
 def is_transmitting(transmission_times):
@@ -65,7 +65,7 @@ def load_state():
             {
                 'solved': False,
                 'transmission_times': []
-            } for _ in range(LED_COUNT)
+            } for _ in range(SATELLITE_COUNT)
         ]
     }
     return default_state
@@ -97,7 +97,7 @@ def set_pixel_color(pixel_index, color):
 def update_led_state():
     """Update LED state based on satellite states."""
     while True:
-        for i in range(LED_COUNT):
+        for i in range(SATELLITE_COUNT):
             led_state = satellite_states['led_states'][i]
             is_led_transmitting = is_transmitting(led_state['transmission_times'])
             
@@ -144,8 +144,8 @@ def webhook():
     event_type = data.get('type')
     led_index = data.get('led_index', 0)  # Default to first LED if not specified
     
-    if not 0 <= led_index < LED_COUNT:
-        return jsonify({'error': 'Invalid LED index'}), 400
+    if not 0 <= led_index < SATELLITE_COUNT:
+        return jsonify({'error': f'Invalid LED index. Must be between 0 and {SATELLITE_COUNT-1}'}), 400
     
     if event_type == 'challenge_solved':
         satellite_states['led_states'][led_index]['solved'] = True
@@ -169,12 +169,13 @@ def health_check():
     """Health check endpoint."""
     return jsonify({
         'status': 'healthy',
+        'satellite_count': SATELLITE_COUNT,
         'satellite_states': satellite_states
     })
 
 if __name__ == '__main__':
     # Log startup
-    logging.info("Starting Satellite LED Controller")
+    logging.info(f"Starting Satellite LED Controller with {SATELLITE_COUNT} satellites")
     
     # Turn off all pixels on startup
     set_all_pixels(Color(0, 0, 0))
