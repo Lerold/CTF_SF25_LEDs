@@ -18,8 +18,26 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
+# LED Configuration
+SATELLITE_COUNT = 10  # Number of satellites
+LEDS_PER_SATELLITE = 3  # Number of LEDs per satellite
+TOTAL_LED_COUNT = SATELLITE_COUNT * LEDS_PER_SATELLITE  # Total number of LEDs
+
+# LED Colours (RGB format)
+COLOURS = {
+    'unsolved': (255, 0, 0),    # Red
+    'solved': (0, 255, 0),      # Green
+    'transmitting': (0, 0, 255) # Blue
+}
+
+# LED Brightness (0-255)
+BRIGHTNESS = {
+    'unsolved': 255,
+    'solved': 255,
+    'transmitting': 255
+}
+
 # LED strip configuration
-SATELLITE_COUNT = 10  # Number of satellites/LEDs
 LED_PIN = 18  # GPIO18 (PWM0)
 LED_FREQ_HZ = 800000
 LED_DMA = 10
@@ -30,12 +48,17 @@ LED_CHANNEL = 0
 # State file path
 STATE_FILE = 'satellite_state.json'
 
-# Initialize Flask app
+# Initialise Flask app
 app = Flask(__name__)
 
-# Initialize NeoPixel strip
-strip = Adafruit_NeoPixel(SATELLITE_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, LED_BRIGHTNESS, LED_CHANNEL)
+# Initialise NeoPixel strip
+strip = Adafruit_NeoPixel(TOTAL_LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, LED_BRIGHTNESS, LED_CHANNEL)
 strip.begin()
+
+def get_satellite_led_indices(satellite_index):
+    """Get the LED indices for a specific satellite."""
+    start_index = satellite_index * LEDS_PER_SATELLITE
+    return range(start_index, start_index + LEDS_PER_SATELLITE)
 
 def is_transmitting(transmission_times):
     """Check if current time falls within any transmission window."""
@@ -58,10 +81,9 @@ def load_state():
     except Exception as e:
         logging.error(f"Error loading state: {e}")
     
-    # Default state with transmission schedules for each LED
+    # Default state with transmission schedules for each satellite
     default_state = {
-        'solved': False,
-        'led_states': [
+        'satellite_states': [
             {
                 'solved': False,
                 'transmission_times': []
@@ -82,46 +104,51 @@ def save_state():
 # Global state
 satellite_states = load_state()
 
-def set_all_pixels(color):
-    """Set all pixels to the specified color."""
+def set_all_pixels(colour):
+    """Set all pixels to the specified colour."""
     for i in range(strip.numPixels()):
-        strip.setPixelColor(i, color)
+        strip.setPixelColor(i, colour)
     strip.show()
 
-def set_pixel_color(pixel_index, color):
-    """Set a specific pixel to the specified color."""
+def set_pixel_colour(pixel_index, colour):
+    """Set a specific pixel to the specified colour."""
     if 0 <= pixel_index < strip.numPixels():
-        strip.setPixelColor(pixel_index, color)
+        strip.setPixelColor(pixel_index, colour)
         strip.show()
+
+def set_satellite_leds(satellite_index, colour):
+    """Set all LEDs for a specific satellite to the given colour."""
+    for led_index in get_satellite_led_indices(satellite_index):
+        set_pixel_colour(led_index, colour)
 
 def update_led_state():
     """Update LED state based on satellite states."""
     while True:
-        for i in range(SATELLITE_COUNT):
-            led_state = satellite_states['led_states'][i]
-            is_led_transmitting = is_transmitting(led_state['transmission_times'])
+        for satellite_index in range(SATELLITE_COUNT):
+            satellite_state = satellite_states['satellite_states'][satellite_index]
+            is_transmitting = is_transmitting(satellite_state['transmission_times'])
             
-            if led_state['solved']:
-                if is_led_transmitting:
-                    # Alternating red and blue for solved and transmitting
-                    set_pixel_color(i, Color(255, 0, 0))  # Red
+            if satellite_state['solved']:
+                if is_transmitting:
+                    # Alternating green and blue for solved and transmitting
+                    set_satellite_leds(satellite_index, Color(*COLOURS['solved']))
                     time.sleep(0.5)
-                    set_pixel_color(i, Color(0, 0, 255))  # Blue
+                    set_satellite_leds(satellite_index, Color(*COLOURS['transmitting']))
                     time.sleep(0.5)
                 else:
-                    # Solid red for solved but not transmitting
-                    set_pixel_color(i, Color(255, 0, 0))  # Red
+                    # Solid green for solved but not transmitting
+                    set_satellite_leds(satellite_index, Color(*COLOURS['solved']))
                     time.sleep(1)
             else:
-                if is_led_transmitting:
-                    # Alternating green and blue for transmitting
-                    set_pixel_color(i, Color(0, 255, 0))  # Green
+                if is_transmitting:
+                    # Alternating red and blue for transmitting
+                    set_satellite_leds(satellite_index, Color(*COLOURS['unsolved']))
                     time.sleep(0.5)
-                    set_pixel_color(i, Color(0, 0, 255))  # Blue
+                    set_satellite_leds(satellite_index, Color(*COLOURS['transmitting']))
                     time.sleep(0.5)
                 else:
-                    # Solid green for normal state
-                    set_pixel_color(i, Color(0, 255, 0))  # Green
+                    # Solid red for normal state
+                    set_satellite_leds(satellite_index, Color(*COLOURS['unsolved']))
                     time.sleep(1)
 
 @app.route('/webhook', methods=['POST'])
@@ -142,22 +169,19 @@ def webhook():
 
     # Handle different webhook events
     event_type = data.get('type')
-    led_index = data.get('led_index', 0)  # Default to first LED if not specified
+    satellite_index = data.get('satellite_index', 0)  # Default to first satellite if not specified
     
-    if not 0 <= led_index < SATELLITE_COUNT:
-        return jsonify({'error': f'Invalid LED index. Must be between 0 and {SATELLITE_COUNT-1}'}), 400
+    if not 0 <= satellite_index < SATELLITE_COUNT:
+        return jsonify({'error': f'Invalid satellite index. Must be between 0 and {SATELLITE_COUNT-1}'}), 400
     
     if event_type == 'challenge_solved':
-        satellite_states['led_states'][led_index]['solved'] = True
-        logging.info(f"Challenge solved for LED {led_index} - updating state")
-    elif event_type == 'challenge_failed':
-        satellite_states['led_states'][led_index]['solved'] = False
-        logging.info(f"Challenge failed for LED {led_index} - updating state")
+        satellite_states['satellite_states'][satellite_index]['solved'] = True
+        logging.info(f"Challenge solved for satellite {satellite_index} - updating state")
     elif event_type == 'add_transmission_time':
         transmission_times = data.get('transmission_times', [])
         if transmission_times:
-            satellite_states['led_states'][led_index]['transmission_times'].extend(transmission_times)
-            logging.info(f"Added transmission times for LED {led_index}: {transmission_times}")
+            satellite_states['satellite_states'][satellite_index]['transmission_times'].extend(transmission_times)
+            logging.info(f"Added transmission times for satellite {satellite_index}: {transmission_times}")
     
     # Save state after any change
     save_state()
@@ -170,12 +194,14 @@ def health_check():
     return jsonify({
         'status': 'healthy',
         'satellite_count': SATELLITE_COUNT,
+        'leds_per_satellite': LEDS_PER_SATELLITE,
+        'total_led_count': TOTAL_LED_COUNT,
         'satellite_states': satellite_states
     })
 
 if __name__ == '__main__':
     # Log startup
-    logging.info(f"Starting Satellite LED Controller with {SATELLITE_COUNT} satellites")
+    logging.info(f"Starting Satellite LED Controller with {SATELLITE_COUNT} satellites and {LEDS_PER_SATELLITE} LEDs per satellite")
     
     # Turn off all pixels on startup
     set_all_pixels(Color(0, 0, 0))
