@@ -1,6 +1,6 @@
 # CTFd LED Controller
 
-This project controls NeoPixels connected to a Raspberry Pi 4, responding to webhooks from CTFd to simulate satellite states. Each satellite can have multiple LEDs, and the system supports configurable colours and brightness levels.
+This project controls NeoPixels connected to a Raspberry Pi 4, responding to webhooks from CTFd to simulate satellite states. Each satellite can have multiple LEDs, and the system supports customisable colours and brightness levels.
 
 ## Hardware Requirements
 
@@ -44,23 +44,39 @@ BRIGHTNESS = {
 
 ## Software Setup
 
-1. Install the required packages:
+1. Set up a Python virtual environment (recommended):
    ```bash
+   # Install virtualenv if you haven't already
+   sudo apt-get update
+   sudo apt-get install python3-venv
+
+   # Create a new virtual environment
+   python3 -m venv venv
+
+   # Activate the virtual environment
+   source venv/bin/activate
+
+   # Your prompt should now show (venv) at the beginning
+   ```
+
+2. Install the required packages:
+   ```bash
+   # Make sure you're in the virtual environment (you should see (venv) in your prompt)
    pip install -r requirements.txt
    ```
 
-2. Create a `.env` file in the project root:
+3. Create a `.env` file in the project root:
    ```
    WEBHOOK_SECRET=your_secret_here
    PORT=5000
    ```
 
-3. Configure the number of satellites and LEDs per satellite:
+4. Configure the number of satellites and LEDs per satellite:
    - Open `led_controller.py`
    - Find the `SATELLITE_COUNT` and `LEDS_PER_SATELLITE` variables at the top of the file
    - Change the values to match your setup
 
-4. Enable SPI and PWM on your Raspberry Pi:
+5. Enable SPI and PWM on your Raspberry Pi:
    ```bash
    sudo raspi-config
    ```
@@ -68,13 +84,88 @@ BRIGHTNESS = {
 
 ## Running the Application
 
-1. Run the application:
+1. Make sure your virtual environment is activated:
    ```bash
-   sudo python3 led_controller.py
+   source venv/bin/activate
    ```
-   Note: The application needs to run with sudo to access the GPIO pins.
 
-2. The server will start on port 5000 (or the port specified in your .env file).
+2. Run the application with sudo (use one of these methods):
+
+   #### Method 1: Using the virtual environment's Python directly
+   ```bash
+   # Get the full path to your virtual environment's Python
+   which python3
+   
+   # Use that path with sudo
+   sudo /full/path/to/venv/bin/python3 led_controller.py
+   ```
+
+   #### Method 2: Using a shell script (recommended for development)
+   Create a file called `run_led_controller.sh`:
+   ```bash
+   #!/bin/bash
+   source /full/path/to/venv/bin/activate
+   python3 led_controller.py
+   ```
+   
+   Make it executable:
+   ```bash
+   chmod +x run_led_controller.sh
+   ```
+   
+   Run it with sudo:
+   ```bash
+   sudo ./run_led_controller.sh
+   ```
+
+   #### Method 3: Create a systemd service (recommended for production)
+   1. Create a service file:
+      ```bash
+      sudo nano /etc/systemd/system/satellite-led.service
+      ```
+
+   2. Add the following content (replace paths with your actual paths):
+      ```ini
+      [Unit]
+      Description=Satellite LED Controller
+      After=network.target
+
+      [Service]
+      Type=simple
+      User=root
+      WorkingDirectory=/path/to/your/project
+      Environment=PATH=/path/to/your/venv/bin
+      Environment=PYTHONPATH=/path/to/your/venv/lib/python3.x/site-packages
+      ExecStart=/path/to/your/venv/bin/python3 led_controller.py
+      Restart=always
+
+      [Install]
+      WantedBy=multi-user.target
+      ```
+
+   3. Enable and start the service:
+      ```bash
+      sudo systemctl daemon-reload
+      sudo systemctl enable satellite-led
+      sudo systemctl start satellite-led
+      ```
+
+   4. Check the status:
+      ```bash
+      sudo systemctl status satellite-led
+      ```
+
+3. The server will start on port 5000 (or the port specified in your .env file).
+
+### Important Notes About Running with sudo
+
+When running the application with sudo, you need to ensure the virtual environment is properly accessible. The methods above handle this in different ways:
+
+- Method 1 is the most direct but requires typing the full path
+- Method 2 is convenient for development but requires creating a shell script
+- Method 3 is the most robust for production use
+
+Choose the method that best suits your needs. For development, Method 2 is recommended. For production, Method 3 is the best choice.
 
 ## State Persistence and Logging
 
