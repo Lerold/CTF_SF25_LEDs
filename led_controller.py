@@ -125,8 +125,7 @@ start_time = datetime.now()
 
 def is_transmitting(transmission_times):
     """Check if a satellite is currently transmitting"""
-    # For testing, use a fixed time that falls within one of the transmission windows
-    test_time = datetime.strptime("2025/03/31 14:12:00", "%Y/%m/%d %H:%M:%S")
+    current_time = datetime.now()
     
     # If no transmission times, not transmitting
     if not transmission_times:
@@ -139,8 +138,8 @@ def is_transmitting(transmission_times):
             start_time = datetime.strptime(start_time_str, "%Y/%m/%d %H:%M:%S")
             end_time = datetime.strptime(end_time_str, "%Y/%m/%d %H:%M:%S")
             
-            # If test time is within this window, satellite is transmitting
-            if start_time <= test_time <= end_time:
+            # If current time is within this window, satellite is transmitting
+            if start_time <= current_time <= end_time:
                 logging.debug(f"Satellite is transmitting: {start_time_str} to {end_time_str}")
                 return True
         except ValueError as e:
