@@ -109,6 +109,11 @@ def handle_error(error):
 strip = Adafruit_NeoPixel(TOTAL_LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, LED_BRIGHTNESS, LED_CHANNEL)
 strip.begin()
 
+def get_satellite_led_indices(satellite_index):
+    """Get the LED indices for a specific satellite."""
+    start_index = satellite_index * LEDS_PER_SATELLITE
+    return range(start_index, start_index + LEDS_PER_SATELLITE)
+
 # Log LED strip initialization
 logging.info(f"Initialized LED strip with {TOTAL_LED_COUNT} LEDs ({SATELLITE_COUNT} satellites × {LEDS_PER_SATELLITE} LEDs per satellite)")
 for i in range(SATELLITE_COUNT):
@@ -118,15 +123,10 @@ for i in range(SATELLITE_COUNT):
 # Initialize start time for LED timing
 start_time = datetime.now()
 
-def get_satellite_led_indices(satellite_index):
-    """Get the LED indices for a specific satellite."""
-    start_index = satellite_index * LEDS_PER_SATELLITE
-    return range(start_index, start_index + LEDS_PER_SATELLITE)
-
 def is_transmitting(transmission_times):
     """Check if a satellite is currently transmitting"""
     # For testing, use a fixed time that falls within one of the transmission windows
-    test_time = datetime.strptime("2024/03/31 14:12:00", "%Y/%m/%d %H:%M:%S")
+    test_time = datetime.strptime("2025/03/31 14:12:00", "%Y/%m/%d %H:%M:%S")
     
     # If no transmission times, not transmitting
     if not transmission_times:
