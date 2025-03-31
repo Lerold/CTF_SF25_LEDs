@@ -21,7 +21,7 @@ logging.basicConfig(
 
 # LED Configuration
 SATELLITE_COUNT = 10  # Number of satellites
-LEDS_PER_SATELLITE = 3  # Number of LEDs per satellite
+LEDS_PER_SATELLITE = 1  # Number of LEDs per satellite
 TOTAL_LED_COUNT = SATELLITE_COUNT * LEDS_PER_SATELLITE  # Total number of LEDs
 
 # LED Colours (RGB format)
@@ -55,6 +55,9 @@ app = Flask(__name__)
 # Initialise NeoPixel strip
 strip = Adafruit_NeoPixel(TOTAL_LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, LED_BRIGHTNESS, LED_CHANNEL)
 strip.begin()
+
+# Initialize start time for LED timing
+start_time = datetime.now()
 
 def get_satellite_led_indices(satellite_index):
     """Get the LED indices for a specific satellite."""
@@ -124,6 +127,7 @@ def set_satellite_leds(satellite_index, colour):
 
 def update_led_state():
     """Update LED states based on satellite transmission times and solved status"""
+    global start_time
     while True:
         try:
             current_time = datetime.now()
