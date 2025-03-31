@@ -31,7 +31,7 @@ STATE_FILE = os.getenv('STATE_FILE', 'satellite_state.json')
 COLOURS = {
     'unsolved': (0, 255, 0),    # Green
     'solved': (255, 0, 0),      # Red
-    'transmitting': (0, 0, 255) # Blue
+    'transmitting': (255, 0, 255) # Blue
 }
 
 # LED Brightness (0-255)
@@ -58,8 +58,8 @@ strip = None  # Make strip global so we can access it during shutdown
 app = None  # Make Flask app global for shutdown
 server = None  # Make server global for shutdown
 
-def signal_handler(signum, frame):
-    """Handle shutdown signals gracefully."""
+def shutdown_server():
+    """Shutdown the server gracefully."""
     global running, shutting_down, strip, server
     if not shutting_down:
         shutting_down = True
@@ -71,6 +71,12 @@ def signal_handler(signum, frame):
         if server:
             server.shutdown()  # Stop the server
             server.server_close()  # Close the server socket
+        os._exit(0)  # Force exit the program
+
+def signal_handler(signum, frame):
+    """Handle shutdown signals gracefully."""
+    # Start shutdown in a separate thread to avoid blocking
+    threading.Thread(target=shutdown_server, daemon=True).start()
 
 # Register signal handlers
 signal.signal(signal.SIGINT, signal_handler)
@@ -334,13 +340,4 @@ if __name__ == '__main__':
         server = make_server('0.0.0.0', port, app)
         server.serve_forever()
     except KeyboardInterrupt:
-        if not shutting_down:
-            print("\nShutting down gracefully...")
-            running = False
-            if led_thread:
-                led_thread.join(timeout=2.0)  # Wait up to 2 seconds for thread to finish
-            set_all_pixels(Color(0, 0, 0))  # Turn off all LEDs
-            if server:
-                server.shutdown()
-                server.server_close()
-            print("Shutdown complete.") 
+        shutdown_server() 
