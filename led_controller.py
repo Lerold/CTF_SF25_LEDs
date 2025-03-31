@@ -33,9 +33,9 @@ COLOURS = {
 
 # LED Brightness (0-255)
 BRIGHTNESS = {
-    'unsolved': 255,
-    'solved': 255,
-    'transmitting': 255
+    'unsolved': 255,    # Red brightness
+    'solved': 255,      # Green brightness
+    'transmitting': 255 # Blue brightness
 }
 
 # LED strip configuration
@@ -71,7 +71,9 @@ def is_transmitting(transmission_times):
         start = datetime.strptime(start_time, "%Y/%m/%d %H:%M:%S")
         end = datetime.strptime(end_time, "%Y/%m/%d %H:%M:%S")
         if start <= current_time <= end:
+            logging.debug(f"Satellite is transmitting: {start_time} to {end_time}")
             return True
+    logging.debug("Satellite is not transmitting")
     return False
 
 def load_state():
@@ -135,6 +137,7 @@ def update_led_state():
             # Load current state
             with open(STATE_FILE, 'r') as f:
                 state = json.load(f)
+                logging.debug(f"Loaded state: {state}")
             
             # Update each LED based on its satellite's state
             for i, satellite_state in enumerate(state['satellite_states']):
@@ -148,28 +151,36 @@ def update_led_state():
                         # Solved and transmitting: alternate between green and blue
                         if (current_time - start_time).total_seconds() % 1.0 < 0.5:
                             strip.setPixelColor(i, Color(0, BRIGHTNESS['solved'], 0))
+                            logging.debug(f"LED {i}: Setting green (solved)")
                         else:
                             strip.setPixelColor(i, Color(0, 0, BRIGHTNESS['transmitting']))
+                            logging.debug(f"LED {i}: Setting blue (transmitting)")
                     else:
                         # Not solved and transmitting: alternate between red and blue
                         if (current_time - start_time).total_seconds() % 1.0 < 0.5:
                             strip.setPixelColor(i, Color(BRIGHTNESS['unsolved'], 0, 0))
+                            logging.debug(f"LED {i}: Setting red (unsolved)")
                         else:
                             strip.setPixelColor(i, Color(0, 0, BRIGHTNESS['transmitting']))
+                            logging.debug(f"LED {i}: Setting blue (transmitting)")
                 else:
                     # If not transmitting, show solid state colour
                     if satellite_state['solved']:
                         # Solved: solid green
                         strip.setPixelColor(i, Color(0, BRIGHTNESS['solved'], 0))
+                        logging.debug(f"LED {i}: Setting solid green (solved)")
                     else:
                         # Not solved: solid red
                         strip.setPixelColor(i, Color(BRIGHTNESS['unsolved'], 0, 0))
+                        logging.debug(f"LED {i}: Setting solid red (unsolved)")
             
             strip.show()
+            logging.debug("Updated all LEDs")
             time.sleep(0.1)  # Update every 100ms
             
         except Exception as e:
             print(f"Exception in thread Thread-1 (update_led_state):\n{traceback.format_exc()}")
+            logging.error(f"Error in update_led_state: {e}")
             time.sleep(1)  # Wait before retrying
 
 @app.route('/webhook', methods=['POST'])
@@ -226,10 +237,12 @@ if __name__ == '__main__':
     
     # Turn off all pixels on startup
     set_all_pixels(Color(0, 0, 0))
+    logging.info("Initialized LED strip and turned off all pixels")
     
     # Start the LED update thread
     led_thread = threading.Thread(target=update_led_state, daemon=True)
     led_thread.start()
+    logging.info("Started LED update thread")
     
     # Get port from environment variable or use default
     port = int(os.getenv('PORT', 5000))
