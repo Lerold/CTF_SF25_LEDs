@@ -54,14 +54,18 @@ LED_STRIP = ws.WS2811_STRIP_GRB  # Strip type and color ordering
 running = True
 led_thread = None
 shutting_down = False
+strip = None  # Make strip global so we can access it during shutdown
 
 def signal_handler(signum, frame):
     """Handle shutdown signals gracefully."""
-    global running, shutting_down
+    global running, shutting_down, strip
     if not shutting_down:
         shutting_down = True
         print("\nReceived shutdown signal. Cleaning up...")
         running = False
+        if strip:
+            set_all_pixels(Color(0, 0, 0))  # Turn off all LEDs immediately
+            strip.show()
 
 # Register signal handlers
 signal.signal(signal.SIGINT, signal_handler)
@@ -320,8 +324,8 @@ if __name__ == '__main__':
         # Log server start
         logging.info(f"Server starting on port {port}")
         
-        # Start the Flask server in debug mode
-        app.run(host='0.0.0.0', port=port, debug=True)
+        # Start the Flask server without debug mode for proper signal handling
+        app.run(host='0.0.0.0', port=port, debug=False)
     except KeyboardInterrupt:
         if not shutting_down:
             print("\nShutting down gracefully...")
