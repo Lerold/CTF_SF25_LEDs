@@ -27,11 +27,11 @@ LEDS_PER_SATELLITE = int(os.getenv('LEDS_PER_SATELLITE', 1))  # Number of LEDs p
 TOTAL_LED_COUNT = SATELLITE_COUNT * LEDS_PER_SATELLITE  # Total number of LEDs
 STATE_FILE = os.getenv('STATE_FILE', 'satellite_state.json')
 
-# LED Colours (RGB format)
+# LED Colours (GRB format)
 COLOURS = {
-    'unsolved': (0, 255, 0),    # Green
-    'solved': (255, 0, 0),      # Red
-    'transmitting': (255, 0, 255) # Blue
+    'unsolved': (0, 255, 0),    # Red (GRB)
+    'solved': (255, 0, 0),      # Green (GRB)
+    'transmitting': (0, 0, 255) # Blue (GRB)
 }
 
 # LED Brightness (0-255)
@@ -203,28 +203,28 @@ def update_led_state():
                     if satellite_state['solved']:
                         # Solved and transmitting: alternate between green and blue
                         if (current_time - start_time).total_seconds() % 1.0 < 0.5:
-                            strip.setPixelColor(i, Color(0, BRIGHTNESS['solved'], 0))
+                            strip.setPixelColor(i, Color(0, BRIGHTNESS['solved'], 0))  # Green (GRB)
                             logging.debug(f"LED {i}: Setting green (solved)")
                         else:
-                            strip.setPixelColor(i, Color(0, 0, BRIGHTNESS['transmitting']))
+                            strip.setPixelColor(i, Color(0, 0, BRIGHTNESS['transmitting']))  # Blue (GRB)
                             logging.debug(f"LED {i}: Setting blue (transmitting)")
                     else:
                         # Not solved and transmitting: alternate between red and blue
                         if (current_time - start_time).total_seconds() % 1.0 < 0.5:
-                            strip.setPixelColor(i, Color(BRIGHTNESS['unsolved'], 0, 0))
+                            strip.setPixelColor(i, Color(BRIGHTNESS['unsolved'], 0, 0))  # Red (GRB)
                             logging.debug(f"LED {i}: Setting red (unsolved)")
                         else:
-                            strip.setPixelColor(i, Color(0, 0, BRIGHTNESS['transmitting']))
+                            strip.setPixelColor(i, Color(0, 0, BRIGHTNESS['transmitting']))  # Blue (GRB)
                             logging.debug(f"LED {i}: Setting blue (transmitting)")
                 else:
                     # If not transmitting, show solid state colour
                     if satellite_state['solved']:
                         # Solved: solid green
-                        strip.setPixelColor(i, Color(0, BRIGHTNESS['solved'], 0))
+                        strip.setPixelColor(i, Color(0, BRIGHTNESS['solved'], 0))  # Green (GRB)
                         logging.debug(f"LED {i}: Setting solid green (solved)")
                     else:
                         # Not solved: solid red
-                        strip.setPixelColor(i, Color(BRIGHTNESS['unsolved'], 0, 0))
+                        strip.setPixelColor(i, Color(BRIGHTNESS['unsolved'], 0, 0))  # Red (GRB)
                         logging.debug(f"LED {i}: Setting solid red (unsolved)")
             
             strip.show()
