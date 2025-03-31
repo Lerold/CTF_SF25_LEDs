@@ -29,8 +29,8 @@ STATE_FILE = os.getenv('STATE_FILE', 'satellite_state.json')
 
 # LED Colours (RGB format)
 COLOURS = {
-    'unsolved': (255, 0, 0),    # Red
-    'solved': (0, 255, 0),      # Green
+    'unsolved': (, 255, 0),    # Green
+    'solved': (255, 0, 0),      # Red
     'transmitting': (0, 0, 255) # Blue
 }
 
@@ -56,10 +56,11 @@ led_thread = None
 shutting_down = False
 strip = None  # Make strip global so we can access it during shutdown
 app = None  # Make Flask app global for shutdown
+server = None  # Make server global for shutdown
 
 def signal_handler(signum, frame):
     """Handle shutdown signals gracefully."""
-    global running, shutting_down, strip, app
+    global running, shutting_down, strip, server
     if not shutting_down:
         shutting_down = True
         print("\nReceived shutdown signal. Cleaning up...")
@@ -67,12 +68,9 @@ def signal_handler(signum, frame):
         if strip:
             set_all_pixels(Color(0, 0, 0))  # Turn off all LEDs immediately
             strip.show()
-        if app:
-            # Stop the Flask server
-            func = request.environ.get('werkzeug.server.shutdown')
-            if func is None:
-                raise RuntimeError('Not running with the Werkzeug Server')
-            func()
+        if server:
+            server.shutdown()  # Stop the server
+            server.server_close()  # Close the server socket
 
 # Register signal handlers
 signal.signal(signal.SIGINT, signal_handler)
@@ -331,8 +329,10 @@ if __name__ == '__main__':
         # Log server start
         logging.info(f"Server starting on port {port}")
         
-        # Start the Flask server without debug mode for proper signal handling
-        app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
+        # Create and start the server
+        from werkzeug.serving import WSGIServer
+        server = WSGIServer(('0.0.0.0', port), app)
+        server.serve_forever()
     except KeyboardInterrupt:
         if not shutting_down:
             print("\nShutting down gracefully...")
@@ -340,4 +340,7 @@ if __name__ == '__main__':
             if led_thread:
                 led_thread.join(timeout=2.0)  # Wait up to 2 seconds for thread to finish
             set_all_pixels(Color(0, 0, 0))  # Turn off all LEDs
+            if server:
+                server.shutdown()
+                server.server_close()
             print("Shutdown complete.") 
