@@ -248,13 +248,50 @@ curl -X POST http://your_raspberry_pi_ip:5000/webhook \
   -H "X-Webhook-Secret: your_secret" \
   -d '{
     "type": "add_transmission_time",
-    "satellite_index": 2,
+    "satellite_index": 1,  # Note: Satellite indices start at 0, so 1 is the second satellite
     "transmission_times": [
       ["2023/05/25 10:25:44", "2023/05/25 10:35:28"],
       ["2023/05/25 11:00:00", "2023/05/25 11:30:00"]
     ]
   }'
 ```
+
+## Manual State File Creation
+
+If you prefer to create the state file manually instead of using webhooks, you can create a file named `satellite_state.json` in the project root directory. Here's the format:
+
+```json
+{
+    "satellite_states": [
+        {
+            "solved": false,
+            "transmission_times": []
+        },
+        {
+            "solved": false,
+            "transmission_times": [
+                ["2023/05/25 10:25:44", "2023/05/25 10:35:28"],
+                ["2023/05/25 11:00:00", "2023/05/25 11:30:00"]
+            ]
+        },
+        {
+            "solved": true,
+            "transmission_times": []
+        }
+    ]
+}
+```
+
+Important notes about the state file:
+- The file must be named `satellite_state.json`
+- It must be in the same directory as `led_controller.py`
+- The `satellite_states` array must contain exactly `SATELLITE_COUNT` entries
+- Each satellite state has two fields:
+  - `solved`: boolean (true/false)
+  - `transmission_times`: array of [start_time, end_time] pairs
+- Times must be in the format "YYYY/MM/DD HH:MM:SS"
+- The file must be readable by the user running the application
+- The application will automatically save changes to this file when webhooks are received
 
 ## LED Behaviour
 
