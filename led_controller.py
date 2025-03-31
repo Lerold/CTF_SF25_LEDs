@@ -330,8 +330,8 @@ if __name__ == '__main__':
         logging.info(f"Server starting on port {port}")
         
         # Create and start the server
-        from werkzeug.serving import WSGIServer
-        server = WSGIServer(('0.0.0.0', port), app)
+        from werkzeug.serving import make_server
+        server = make_server('0.0.0.0', port, app)
         server.serve_forever()
     except KeyboardInterrupt:
         if not shutting_down:
