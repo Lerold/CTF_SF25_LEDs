@@ -7,6 +7,7 @@ from rpi_ws281x import *
 from dotenv import load_dotenv
 import threading
 from datetime import datetime
+import traceback
 
 # Load environment variables
 load_dotenv()
@@ -122,34 +123,50 @@ def set_satellite_leds(satellite_index, colour):
         set_pixel_colour(led_index, colour)
 
 def update_led_state():
-    """Update LED state based on satellite states."""
+    """Update LED states based on satellite transmission times and solved status"""
     while True:
-        for satellite_index in range(SATELLITE_COUNT):
-            satellite_state = satellite_states['satellite_states'][satellite_index]
-            is_transmitting = is_transmitting(satellite_state['transmission_times'])
+        try:
+            current_time = datetime.now()
             
-            if satellite_state['solved']:
-                if is_transmitting:
-                    # Alternating green and blue for solved and transmitting
-                    set_satellite_leds(satellite_index, Color(*COLOURS['solved']))
-                    time.sleep(0.5)
-                    set_satellite_leds(satellite_index, Color(*COLOURS['transmitting']))
-                    time.sleep(0.5)
+            # Load current state
+            with open(STATE_FILE, 'r') as f:
+                state = json.load(f)
+            
+            # Update each LED based on its satellite's state
+            for i, satellite_state in enumerate(state['satellite_states']):
+                # Check if satellite is currently transmitting
+                transmitting_status = is_transmitting(satellite_state['transmission_times'])
+                
+                # Update LED based on state
+                if transmitting_status:
+                    # If transmitting, alternate between state colour and blue
+                    if satellite_state['solved']:
+                        # Solved and transmitting: alternate between green and blue
+                        if (current_time - start_time).total_seconds() % 1.0 < 0.5:
+                            strip.setPixelColor(i, Color(0, BRIGHTNESS['solved'], 0))
+                        else:
+                            strip.setPixelColor(i, Color(0, 0, BRIGHTNESS['transmitting']))
+                    else:
+                        # Not solved and transmitting: alternate between red and blue
+                        if (current_time - start_time).total_seconds() % 1.0 < 0.5:
+                            strip.setPixelColor(i, Color(BRIGHTNESS['unsolved'], 0, 0))
+                        else:
+                            strip.setPixelColor(i, Color(0, 0, BRIGHTNESS['transmitting']))
                 else:
-                    # Solid green for solved but not transmitting
-                    set_satellite_leds(satellite_index, Color(*COLOURS['solved']))
-                    time.sleep(1)
-            else:
-                if is_transmitting:
-                    # Alternating red and blue for transmitting
-                    set_satellite_leds(satellite_index, Color(*COLOURS['unsolved']))
-                    time.sleep(0.5)
-                    set_satellite_leds(satellite_index, Color(*COLOURS['transmitting']))
-                    time.sleep(0.5)
-                else:
-                    # Solid red for normal state
-                    set_satellite_leds(satellite_index, Color(*COLOURS['unsolved']))
-                    time.sleep(1)
+                    # If not transmitting, show solid state colour
+                    if satellite_state['solved']:
+                        # Solved: solid green
+                        strip.setPixelColor(i, Color(0, BRIGHTNESS['solved'], 0))
+                    else:
+                        # Not solved: solid red
+                        strip.setPixelColor(i, Color(BRIGHTNESS['unsolved'], 0, 0))
+            
+            strip.show()
+            time.sleep(0.1)  # Update every 100ms
+            
+        except Exception as e:
+            print(f"Exception in thread Thread-1 (update_led_state):\n{traceback.format_exc()}")
+            time.sleep(1)  # Wait before retrying
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
