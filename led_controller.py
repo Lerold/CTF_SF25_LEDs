@@ -118,14 +118,29 @@ def get_satellite_led_indices(satellite_index):
     return range(start_index, start_index + LEDS_PER_SATELLITE)
 
 def is_transmitting(transmission_times):
-    """Check if current time falls within any transmission window."""
+    """Check if a satellite is currently transmitting"""
     current_time = datetime.now()
-    for start_time, end_time in transmission_times:
-        start = datetime.strptime(start_time, "%Y/%m/%d %H:%M:%S")
-        end = datetime.strptime(end_time, "%Y/%m/%d %H:%M:%S")
-        if start <= current_time <= end:
-            logging.debug(f"Satellite is transmitting: {start_time} to {end_time}")
-            return True
+    
+    # If no transmission times, not transmitting
+    if not transmission_times:
+        return False
+    
+    # Check each transmission window
+    for start_time_str, end_time_str in transmission_times:
+        try:
+            # Parse the times
+            start_time = datetime.strptime(start_time_str, "%Y/%m/%d %H:%M:%S")
+            end_time = datetime.strptime(end_time_str, "%Y/%m/%d %H:%M:%S")
+            
+            # If current time is within this window, satellite is transmitting
+            if start_time <= current_time <= end_time:
+                logging.debug(f"Satellite is transmitting: {start_time_str} to {end_time_str}")
+                return True
+        except ValueError as e:
+            logging.error(f"Error parsing transmission time: {e}")
+            continue
+    
+    # If we get here, we're not in any transmission window
     logging.debug("Satellite is not transmitting")
     return False
 
@@ -314,6 +329,93 @@ def health_check():
         'total_led_count': TOTAL_LED_COUNT,
         'satellite_states': satellite_states
     })
+
+@app.route('/update_transmission_times', methods=['POST'])
+def update_transmission_times():
+    """Update transmission times for satellites"""
+    try:
+        # Verify webhook secret
+        secret = request.headers.get('X-Webhook-Secret')
+        if not secret or secret != WEBHOOK_SECRET:
+            return jsonify({'error': 'Invalid webhook secret'}), 401
+        
+        # Parse request data
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+            
+        # Load current state
+        with open(STATE_FILE, 'r') as f:
+            state = json.load(f)
+        
+        # Update transmission times
+        for satellite_id, transmission_times in data.items():
+            if 0 <= int(satellite_id) < SATELLITE_COUNT:
+                state['satellite_states'][int(satellite_id)]['transmission_times'] = transmission_times
+        
+        # Save updated state
+        with open(STATE_FILE, 'w') as f:
+            json.dump(state, f, indent=4)
+            
+        return jsonify({'status': 'success'})
+        
+    except Exception as e:
+        logging.error(f"Error updating transmission times: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/clear_transmission_times', methods=['POST'])
+def clear_transmission_times():
+    """Clear all transmission times for satellites"""
+    try:
+        # Verify webhook secret
+        secret = request.headers.get('X-Webhook-Secret')
+        if not secret or secret != WEBHOOK_SECRET:
+            return jsonify({'error': 'Invalid webhook secret'}), 401
+            
+        # Load current state
+        with open(STATE_FILE, 'r') as f:
+            state = json.load(f)
+        
+        # Clear transmission times for all satellites
+        for satellite in state['satellite_states']:
+            satellite['transmission_times'] = []
+        
+        # Save updated state
+        with open(STATE_FILE, 'w') as f:
+            json.dump(state, f, indent=4)
+            
+        return jsonify({'status': 'success', 'message': 'All transmission times cleared'})
+        
+    except Exception as e:
+        logging.error(f"Error clearing transmission times: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/transmitting', methods=['GET'])
+def get_transmitting_satellites():
+    """Get list of currently transmitting satellites"""
+    try:
+        # Load current state
+        with open(STATE_FILE, 'r') as f:
+            state = json.load(f)
+        
+        # Check each satellite
+        transmitting_satellites = []
+        for i, satellite in enumerate(state['satellite_states']):
+            if is_transmitting(satellite['transmission_times']):
+                transmitting_satellites.append({
+                    'satellite_id': i,
+                    'solved': satellite['solved'],
+                    'transmission_times': satellite['transmission_times']
+                })
+        
+        return jsonify({
+            'transmitting_count': len(transmitting_satellites),
+            'transmitting_satellites': transmitting_satellites
+        })
+        
+    except Exception as e:
+        logging.error(f"Error getting transmitting satellites: {e}")
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     try:
