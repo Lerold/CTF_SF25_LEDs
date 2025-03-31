@@ -192,12 +192,16 @@ def webhook():
     """Handle webhook events from CTFd"""
     try:
         # Log incoming request
-        print("Received webhook request")
+        print("\n=== Webhook Request Received ===")
         print(f"Headers: {dict(request.headers)}")
-        print(f"Data: {request.get_data()}")
+        print(f"Raw Data: {request.get_data()}")
+        print(f"WEBHOOK_SECRET from env: {WEBHOOK_SECRET}")
         
         # Verify webhook secret
         secret = request.headers.get('X-Webhook-Secret')
+        print(f"Received secret: {secret}")
+        print(f"Secret match: {secret == WEBHOOK_SECRET}")
+        
         if not secret or secret != WEBHOOK_SECRET:
             print(f"Invalid or missing secret. Received: {secret}, Expected: {WEBHOOK_SECRET}")
             return jsonify({'error': 'Invalid webhook secret'}), 401
@@ -223,6 +227,7 @@ def webhook():
         # Load current state
         with open(STATE_FILE, 'r') as f:
             state = json.load(f)
+            print(f"Current state: {state}")
         
         # Update state based on event
         if event_type == 'solve':
@@ -240,11 +245,14 @@ def webhook():
             json.dump(state, f, indent=4)
             
         print("State updated successfully")
+        print("=== Webhook Request Completed ===\n")
         return jsonify({'status': 'success'})
         
     except Exception as e:
+        print(f"\n=== Webhook Error ===")
         print(f"Error processing webhook: {str(e)}")
         print(f"Traceback: {traceback.format_exc()}")
+        print("=== Webhook Error End ===\n")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/health', methods=['GET'])
