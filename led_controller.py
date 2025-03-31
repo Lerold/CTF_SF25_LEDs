@@ -53,12 +53,15 @@ LED_STRIP = ws.WS2811_STRIP_GRB  # Strip type and color ordering
 # Global variables for graceful shutdown
 running = True
 led_thread = None
+shutting_down = False
 
 def signal_handler(signum, frame):
     """Handle shutdown signals gracefully."""
-    global running
-    print("\nReceived shutdown signal. Cleaning up...")
-    running = False
+    global running, shutting_down
+    if not shutting_down:
+        shutting_down = True
+        print("\nReceived shutdown signal. Cleaning up...")
+        running = False
 
 # Register signal handlers
 signal.signal(signal.SIGINT, signal_handler)
@@ -320,9 +323,10 @@ if __name__ == '__main__':
         # Start the Flask server in debug mode
         app.run(host='0.0.0.0', port=port, debug=True)
     except KeyboardInterrupt:
-        print("\nShutting down gracefully...")
-        running = False
-        if led_thread:
-            led_thread.join(timeout=1.0)
-        set_all_pixels(Color(0, 0, 0))  # Turn off all LEDs
-        print("Shutdown complete.") 
+        if not shutting_down:
+            print("\nShutting down gracefully...")
+            running = False
+            if led_thread:
+                led_thread.join(timeout=2.0)  # Wait up to 2 seconds for thread to finish
+            set_all_pixels(Color(0, 0, 0))  # Turn off all LEDs
+            print("Shutdown complete.") 
