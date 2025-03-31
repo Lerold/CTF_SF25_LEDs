@@ -33,9 +33,9 @@ COLOURS = {
 
 # LED Brightness (0-255)
 BRIGHTNESS = {
-    'unsolved': 255,    # Red brightness
-    'solved': 255,      # Green brightness
-    'transmitting': 255 # Blue brightness
+    'unsolved': 100,    # Red brightness
+    'solved': 100,      # Green brightness
+    'transmitting': 150 # Blue brightness
 }
 
 # LED strip configuration
@@ -185,40 +185,63 @@ def update_led_state():
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    """Handle incoming webhooks from CTFd."""
-    data = request.get_json()
-    
-    # Log incoming webhook
-    logging.info(f"Received webhook: {data}")
-    
-    # Verify webhook secret if configured
-    webhook_secret = os.getenv('WEBHOOK_SECRET')
-    if webhook_secret:
-        received_secret = request.headers.get('X-Webhook-Secret')
-        if not received_secret or received_secret != webhook_secret:
-            logging.warning("Invalid webhook secret received")
+    """Handle webhook events from CTFd"""
+    try:
+        # Log incoming request
+        print("Received webhook request")
+        print(f"Headers: {dict(request.headers)}")
+        print(f"Data: {request.get_data()}")
+        
+        # Verify webhook secret
+        secret = request.headers.get('X-Webhook-Secret')
+        if not secret or secret != os.getenv('WEBHOOK_SECRET'):
+            print(f"Invalid or missing secret. Received: {secret}, Expected: {os.getenv('WEBHOOK_SECRET')}")
             return jsonify({'error': 'Invalid webhook secret'}), 401
-
-    # Handle different webhook events
-    event_type = data.get('type')
-    satellite_index = data.get('satellite_index', 0)  # Default to first satellite if not specified
-    
-    if not 0 <= satellite_index < SATELLITE_COUNT:
-        return jsonify({'error': f'Invalid satellite index. Must be between 0 and {SATELLITE_COUNT-1}'}), 400
-    
-    if event_type == 'challenge_solved':
-        satellite_states['satellite_states'][satellite_index]['solved'] = True
-        logging.info(f"Challenge solved for satellite {satellite_index} - updating state")
-    elif event_type == 'add_transmission_time':
-        transmission_times = data.get('transmission_times', [])
-        if transmission_times:
-            satellite_states['satellite_states'][satellite_index]['transmission_times'].extend(transmission_times)
-            logging.info(f"Added transmission times for satellite {satellite_index}: {transmission_times}")
-    
-    # Save state after any change
-    save_state()
-    
-    return jsonify({'status': 'success'})
+        
+        # Parse request data
+        data = request.get_json()
+        if not data:
+            print("No JSON data received")
+            return jsonify({'error': 'No data provided'}), 400
+            
+        print(f"Parsed data: {data}")
+        
+        # Extract challenge ID and event type
+        challenge_id = data.get('challenge_id')
+        event_type = data.get('event')
+        
+        if challenge_id is None or event_type is None:
+            print(f"Missing required fields. challenge_id: {challenge_id}, event: {event_type}")
+            return jsonify({'error': 'Missing required fields'}), 400
+            
+        print(f"Processing challenge_id: {challenge_id}, event: {event_type}")
+        
+        # Load current state
+        with open(STATE_FILE, 'r') as f:
+            state = json.load(f)
+        
+        # Update state based on event
+        if event_type == 'solve':
+            state['satellite_states'][challenge_id]['solved'] = True
+            print(f"Set satellite {challenge_id} as solved")
+        elif event_type == 'unsolve':
+            state['satellite_states'][challenge_id]['solved'] = False
+            print(f"Set satellite {challenge_id} as unsolved")
+        else:
+            print(f"Unknown event type: {event_type}")
+            return jsonify({'error': 'Invalid event type'}), 400
+        
+        # Save updated state
+        with open(STATE_FILE, 'w') as f:
+            json.dump(state, f, indent=4)
+            
+        print("State updated successfully")
+        return jsonify({'status': 'success'})
+        
+    except Exception as e:
+        print(f"Error processing webhook: {str(e)}")
+        print(f"Traceback: {traceback.format_exc()}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/health', methods=['GET'])
 def health_check():
@@ -250,5 +273,5 @@ if __name__ == '__main__':
     # Log server start
     logging.info(f"Server starting on port {port}")
     
-    # Start the Flask server
-    app.run(host='0.0.0.0', port=port) 
+    # Start the Flask server in debug mode
+    app.run(host='0.0.0.0', port=port, debug=True) 
