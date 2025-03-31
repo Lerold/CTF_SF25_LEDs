@@ -417,19 +417,44 @@ def get_transmitting_satellites():
         logging.error(f"Error getting transmitting satellites: {e}")
         return jsonify({'error': str(e)}), 500
 
+def initialize_state_file():
+    """Create or initialize the state file with default values"""
+    try:
+        # Check if file exists and is not empty
+        if os.path.exists(STATE_FILE) and os.path.getsize(STATE_FILE) > 0:
+            return
+            
+        # Create default state structure
+        default_state = {
+            "satellite_states": []
+        }
+        
+        # Add states for each satellite
+        for i in range(SATELLITE_COUNT):
+            default_state["satellite_states"].append({
+                "satellite_id": i,
+                "solved": False,
+                "transmission_times": []
+            })
+        
+        # Save to file
+        with open(STATE_FILE, 'w') as f:
+            json.dump(default_state, f, indent=4)
+            
+        logging.info(f"Initialized state file with {SATELLITE_COUNT} satellites")
+        
+    except Exception as e:
+        logging.error(f"Error initializing state file: {e}")
+        raise
+
 if __name__ == '__main__':
     try:
-        # Log startup
-        logging.info(f"Starting Satellite LED Controller with {SATELLITE_COUNT} satellites and {LEDS_PER_SATELLITE} LEDs per satellite")
+        # Initialize state file if needed
+        initialize_state_file()
         
-        # Turn off all pixels on startup
-        set_all_pixels(Color(0, 0, 0))
-        logging.info("Initialized LED strip and turned off all pixels")
-        
-        # Start the LED update thread
+        # Start the LED control thread
         led_thread = threading.Thread(target=update_led_state, daemon=True)
         led_thread.start()
-        logging.info("Started LED update thread")
         
         # Get port from environment variable or use default
         port = int(os.getenv('PORT', 5000))
@@ -442,4 +467,8 @@ if __name__ == '__main__':
         server = make_server('0.0.0.0', port, app)
         server.serve_forever()
     except KeyboardInterrupt:
+        print("\nShutting down gracefully...")
+        shutdown_server()
+    except Exception as e:
+        logging.error(f"Error in main: {e}")
         shutdown_server() 

@@ -47,6 +47,12 @@ A Python application for controlling NeoPixel LEDs on a Raspberry Pi to display 
    STATE_FILE=satellite_state.json
    ```
 
+4. Run the application:
+   ```bash
+   sudo python3 led_controller.py
+   ```
+   The application will automatically create and initialise the state file with the correct number of satellites based on your configuration.
+
 ## Usage
 
 1. Run the application with sudo (required for GPIO access):
