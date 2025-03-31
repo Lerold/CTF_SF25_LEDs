@@ -10,7 +10,7 @@ from datetime import datetime
 import traceback
 
 # Load environment variables
-load_dotenv()
+load_dotenv('secret.env')
 
 # Configure logging
 logging.basicConfig(
@@ -20,8 +20,8 @@ logging.basicConfig(
 )
 
 # LED Configuration
-SATELLITE_COUNT = 10  # Number of satellites
-LEDS_PER_SATELLITE = 1  # Number of LEDs per satellite
+SATELLITE_COUNT = int(os.getenv('SATELLITE_COUNT', 10))  # Number of satellites
+LEDS_PER_SATELLITE = int(os.getenv('LEDS_PER_SATELLITE', 1))  # Number of LEDs per satellite
 TOTAL_LED_COUNT = SATELLITE_COUNT * LEDS_PER_SATELLITE  # Total number of LEDs
 
 # LED Colours (RGB format)
@@ -40,14 +40,15 @@ BRIGHTNESS = {
 
 # LED strip configuration
 LED_PIN = 18  # GPIO18 (PWM0)
-LED_FREQ_HZ = 800000
-LED_DMA = 10
-LED_BRIGHTNESS = 255
-LED_INVERT = False
-LED_CHANNEL = 0
+LED_FREQ_HZ = 800000  # LED signal frequency in Hz
+LED_DMA = 10  # DMA channel to use for generating signal
+LED_BRIGHTNESS = 255  # Set to 0 for darkest and 255 for brightest
+LED_INVERT = False  # True to invert the signal
+LED_CHANNEL = 0  # PWM channel
+LED_STRIP = ws.WS2811_STRIP_GRB  # Strip type and color ordering
 
 # State file path
-STATE_FILE = 'satellite_state.json'
+STATE_FILE = os.getenv('STATE_FILE', 'satellite_state.json')
 
 # Initialise Flask app
 app = Flask(__name__)
@@ -58,6 +59,9 @@ strip.begin()
 
 # Initialize start time for LED timing
 start_time = datetime.now()
+
+# Load configuration from environment variables
+WEBHOOK_SECRET = os.getenv('WEBHOOK_SECRET', 'CTF_SF25_LEDs_Secret')
 
 def get_satellite_led_indices(satellite_index):
     """Get the LED indices for a specific satellite."""
@@ -194,8 +198,8 @@ def webhook():
         
         # Verify webhook secret
         secret = request.headers.get('X-Webhook-Secret')
-        if not secret or secret != os.getenv('WEBHOOK_SECRET'):
-            print(f"Invalid or missing secret. Received: {secret}, Expected: {os.getenv('WEBHOOK_SECRET')}")
+        if not secret or secret != WEBHOOK_SECRET:
+            print(f"Invalid or missing secret. Received: {secret}, Expected: {WEBHOOK_SECRET}")
             return jsonify({'error': 'Invalid webhook secret'}), 401
         
         # Parse request data
