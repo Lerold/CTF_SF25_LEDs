@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 import threading
 from datetime import datetime
 import traceback
+import signal
 
 # Load environment variables
 load_dotenv('secret.env')
@@ -19,10 +20,12 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
-# LED Configuration
+# Load configuration from environment variables
+WEBHOOK_SECRET = os.getenv('WEBHOOK_SECRET', 'CTF_SF25_LEDs_Secret')
 SATELLITE_COUNT = int(os.getenv('SATELLITE_COUNT', 10))  # Number of satellites
 LEDS_PER_SATELLITE = int(os.getenv('LEDS_PER_SATELLITE', 1))  # Number of LEDs per satellite
 TOTAL_LED_COUNT = SATELLITE_COUNT * LEDS_PER_SATELLITE  # Total number of LEDs
+STATE_FILE = os.getenv('STATE_FILE', 'satellite_state.json')
 
 # LED Colours (RGB format)
 COLOURS = {
@@ -47,11 +50,42 @@ LED_INVERT = False  # True to invert the signal
 LED_CHANNEL = 0  # PWM channel
 LED_STRIP = ws.WS2811_STRIP_GRB  # Strip type and color ordering
 
-# State file path
-STATE_FILE = os.getenv('STATE_FILE', 'satellite_state.json')
+# Global variables for graceful shutdown
+running = True
+led_thread = None
+
+def signal_handler(signum, frame):
+    """Handle shutdown signals gracefully."""
+    global running
+    print("\nReceived shutdown signal. Cleaning up...")
+    running = False
+
+# Register signal handlers
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
 
 # Initialise Flask app
 app = Flask(__name__)
+
+# Add request logging middleware
+@app.before_request
+def log_request_info():
+    print("\n=== Incoming Request ===")
+    print(f"Method: {request.method}")
+    print(f"Path: {request.path}")
+    print(f"Headers: {dict(request.headers)}")
+    print(f"Data: {request.get_data()}")
+    print(f"WEBHOOK_SECRET from env: {WEBHOOK_SECRET}")
+    print("=== End Request ===\n")
+
+# Add error handler
+@app.errorhandler(Exception)
+def handle_error(error):
+    print(f"\n=== Error Handler ===")
+    print(f"Error: {str(error)}")
+    print(f"Traceback: {traceback.format_exc()}")
+    print("=== Error Handler End ===\n")
+    return jsonify({'error': str(error)}), 500
 
 # Initialise NeoPixel strip
 strip = Adafruit_NeoPixel(TOTAL_LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, LED_BRIGHTNESS, LED_CHANNEL)
@@ -59,9 +93,6 @@ strip.begin()
 
 # Initialize start time for LED timing
 start_time = datetime.now()
-
-# Load configuration from environment variables
-WEBHOOK_SECRET = os.getenv('WEBHOOK_SECRET', 'CTF_SF25_LEDs_Secret')
 
 def get_satellite_led_indices(satellite_index):
     """Get the LED indices for a specific satellite."""
@@ -134,7 +165,7 @@ def set_satellite_leds(satellite_index, colour):
 def update_led_state():
     """Update LED states based on satellite transmission times and solved status"""
     global start_time
-    while True:
+    while running:  # Use the global running flag
         try:
             current_time = datetime.now()
             
@@ -267,23 +298,31 @@ def health_check():
     })
 
 if __name__ == '__main__':
-    # Log startup
-    logging.info(f"Starting Satellite LED Controller with {SATELLITE_COUNT} satellites and {LEDS_PER_SATELLITE} LEDs per satellite")
-    
-    # Turn off all pixels on startup
-    set_all_pixels(Color(0, 0, 0))
-    logging.info("Initialized LED strip and turned off all pixels")
-    
-    # Start the LED update thread
-    led_thread = threading.Thread(target=update_led_state, daemon=True)
-    led_thread.start()
-    logging.info("Started LED update thread")
-    
-    # Get port from environment variable or use default
-    port = int(os.getenv('PORT', 5000))
-    
-    # Log server start
-    logging.info(f"Server starting on port {port}")
-    
-    # Start the Flask server in debug mode
-    app.run(host='0.0.0.0', port=port, debug=True) 
+    try:
+        # Log startup
+        logging.info(f"Starting Satellite LED Controller with {SATELLITE_COUNT} satellites and {LEDS_PER_SATELLITE} LEDs per satellite")
+        
+        # Turn off all pixels on startup
+        set_all_pixels(Color(0, 0, 0))
+        logging.info("Initialized LED strip and turned off all pixels")
+        
+        # Start the LED update thread
+        led_thread = threading.Thread(target=update_led_state, daemon=True)
+        led_thread.start()
+        logging.info("Started LED update thread")
+        
+        # Get port from environment variable or use default
+        port = int(os.getenv('PORT', 5000))
+        
+        # Log server start
+        logging.info(f"Server starting on port {port}")
+        
+        # Start the Flask server in debug mode
+        app.run(host='0.0.0.0', port=port, debug=True)
+    except KeyboardInterrupt:
+        print("\nShutting down gracefully...")
+        running = False
+        if led_thread:
+            led_thread.join(timeout=1.0)
+        set_all_pixels(Color(0, 0, 0))  # Turn off all LEDs
+        print("Shutdown complete.") 
