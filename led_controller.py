@@ -109,6 +109,12 @@ def handle_error(error):
 strip = Adafruit_NeoPixel(TOTAL_LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, LED_BRIGHTNESS, LED_CHANNEL)
 strip.begin()
 
+# Log LED strip initialization
+logging.info(f"Initialized LED strip with {TOTAL_LED_COUNT} LEDs ({SATELLITE_COUNT} satellites × {LEDS_PER_SATELLITE} LEDs per satellite)")
+for i in range(SATELLITE_COUNT):
+    led_indices = get_satellite_led_indices(i)
+    logging.info(f"Satellite {i} controls LEDs: {list(led_indices)}")
+
 # Initialize start time for LED timing
 start_time = datetime.now()
 
@@ -119,7 +125,8 @@ def get_satellite_led_indices(satellite_index):
 
 def is_transmitting(transmission_times):
     """Check if a satellite is currently transmitting"""
-    current_time = datetime.now()
+    # For testing, use a fixed time that falls within one of the transmission windows
+    test_time = datetime.strptime("2024/03/31 14:12:00", "%Y/%m/%d %H:%M:%S")
     
     # If no transmission times, not transmitting
     if not transmission_times:
@@ -132,8 +139,8 @@ def is_transmitting(transmission_times):
             start_time = datetime.strptime(start_time_str, "%Y/%m/%d %H:%M:%S")
             end_time = datetime.strptime(end_time_str, "%Y/%m/%d %H:%M:%S")
             
-            # If current time is within this window, satellite is transmitting
-            if start_time <= current_time <= end_time:
+            # If test time is within this window, satellite is transmitting
+            if start_time <= test_time <= end_time:
                 logging.debug(f"Satellite is transmitting: {start_time_str} to {end_time_str}")
                 return True
         except ValueError as e:
@@ -208,39 +215,44 @@ def update_led_state():
                 logging.debug(f"Loaded state: {state}")
             
             # Update each LED based on its satellite's state
-            for i, satellite_state in enumerate(state['satellite_states']):
+            for satellite_index, satellite_state in enumerate(state['satellite_states']):
+                # Get LED indices for this satellite
+                led_indices = get_satellite_led_indices(satellite_index)
+                
                 # Check if satellite is currently transmitting
                 transmitting_status = is_transmitting(satellite_state['transmission_times'])
                 
-                # Update LED based on state
-                if transmitting_status:
-                    # If transmitting, alternate between state colour and blue
-                    if satellite_state['solved']:
-                        # Solved and transmitting: alternate between green and blue
-                        if (current_time - start_time).total_seconds() % 1.0 < 0.5:
-                            strip.setPixelColor(i, Color(0, BRIGHTNESS['solved'], 0))  # Green (GRB)
-                            logging.debug(f"LED {i}: Setting green (solved)")
+                # Update each LED for this satellite
+                for led_index in led_indices:
+                    # Update LED based on state
+                    if transmitting_status:
+                        # If transmitting, alternate between state colour and blue
+                        if satellite_state['solved']:
+                            # Solved and transmitting: alternate between green and blue
+                            if (current_time - start_time).total_seconds() % 1.0 < 0.5:
+                                strip.setPixelColor(led_index, Color(0, BRIGHTNESS['solved'], 0))  # Green (GRB)
+                                logging.debug(f"LED {led_index}: Setting green (solved)")
+                            else:
+                                strip.setPixelColor(led_index, Color(0, 0, BRIGHTNESS['transmitting']))  # Blue (GRB)
+                                logging.debug(f"LED {led_index}: Setting blue (transmitting)")
                         else:
-                            strip.setPixelColor(i, Color(0, 0, BRIGHTNESS['transmitting']))  # Blue (GRB)
-                            logging.debug(f"LED {i}: Setting blue (transmitting)")
+                            # Not solved and transmitting: alternate between red and blue
+                            if (current_time - start_time).total_seconds() % 1.0 < 0.5:
+                                strip.setPixelColor(led_index, Color(BRIGHTNESS['unsolved'], 0, 0))  # Red (GRB)
+                                logging.debug(f"LED {led_index}: Setting red (unsolved)")
+                            else:
+                                strip.setPixelColor(led_index, Color(0, 0, BRIGHTNESS['transmitting']))  # Blue (GRB)
+                                logging.debug(f"LED {led_index}: Setting blue (transmitting)")
                     else:
-                        # Not solved and transmitting: alternate between red and blue
-                        if (current_time - start_time).total_seconds() % 1.0 < 0.5:
-                            strip.setPixelColor(i, Color(BRIGHTNESS['unsolved'], 0, 0))  # Red (GRB)
-                            logging.debug(f"LED {i}: Setting red (unsolved)")
+                        # If not transmitting, show solid state colour
+                        if satellite_state['solved']:
+                            # Solved: solid green
+                            strip.setPixelColor(led_index, Color(0, BRIGHTNESS['solved'], 0))  # Green (GRB)
+                            logging.debug(f"LED {led_index}: Setting solid green (solved)")
                         else:
-                            strip.setPixelColor(i, Color(0, 0, BRIGHTNESS['transmitting']))  # Blue (GRB)
-                            logging.debug(f"LED {i}: Setting blue (transmitting)")
-                else:
-                    # If not transmitting, show solid state colour
-                    if satellite_state['solved']:
-                        # Solved: solid green
-                        strip.setPixelColor(i, Color(0, BRIGHTNESS['solved'], 0))  # Green (GRB)
-                        logging.debug(f"LED {i}: Setting solid green (solved)")
-                    else:
-                        # Not solved: solid red
-                        strip.setPixelColor(i, Color(BRIGHTNESS['unsolved'], 0, 0))  # Red (GRB)
-                        logging.debug(f"LED {i}: Setting solid red (unsolved)")
+                            # Not solved: solid red
+                            strip.setPixelColor(led_index, Color(BRIGHTNESS['unsolved'], 0, 0))  # Red (GRB)
+                            logging.debug(f"LED {led_index}: Setting solid red (unsolved)")
             
             strip.show()
             logging.debug("Updated all LEDs")
