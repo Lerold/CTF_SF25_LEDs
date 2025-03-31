@@ -36,9 +36,9 @@ COLOURS = {
 
 # LED Brightness (0-255)
 BRIGHTNESS = {
-    'unsolved': 100,    # Red brightness
-    'solved': 100,      # Green brightness
-    'transmitting': 150 # Blue brightness
+    'unsolved': 50,    # Red brightness
+    'solved': 50,      # Green brightness
+    'transmitting': 100 # Blue brightness
 }
 
 # LED strip configuration
@@ -55,10 +55,11 @@ running = True
 led_thread = None
 shutting_down = False
 strip = None  # Make strip global so we can access it during shutdown
+app = None  # Make Flask app global for shutdown
 
 def signal_handler(signum, frame):
     """Handle shutdown signals gracefully."""
-    global running, shutting_down, strip
+    global running, shutting_down, strip, app
     if not shutting_down:
         shutting_down = True
         print("\nReceived shutdown signal. Cleaning up...")
@@ -66,6 +67,12 @@ def signal_handler(signum, frame):
         if strip:
             set_all_pixels(Color(0, 0, 0))  # Turn off all LEDs immediately
             strip.show()
+        if app:
+            # Stop the Flask server
+            func = request.environ.get('werkzeug.server.shutdown')
+            if func is None:
+                raise RuntimeError('Not running with the Werkzeug Server')
+            func()
 
 # Register signal handlers
 signal.signal(signal.SIGINT, signal_handler)
@@ -325,7 +332,7 @@ if __name__ == '__main__':
         logging.info(f"Server starting on port {port}")
         
         # Start the Flask server without debug mode for proper signal handling
-        app.run(host='0.0.0.0', port=port, debug=False)
+        app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
     except KeyboardInterrupt:
         if not shutting_down:
             print("\nShutting down gracefully...")
