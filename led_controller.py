@@ -29,7 +29,7 @@ STATE_FILE = os.getenv('STATE_FILE', 'satellite_state.json')
 
 # LED Colours (RGB format)
 COLOURS = {
-    'unsolved': (, 255, 0),    # Green
+    'unsolved': (0, 255, 0),    # Green
     'solved': (255, 0, 0),      # Red
     'transmitting': (0, 0, 255) # Blue
 }
