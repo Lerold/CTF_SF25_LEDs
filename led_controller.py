@@ -22,7 +22,7 @@ logging.basicConfig(
 
 # Load configuration from environment variables
 WEBHOOK_SECRET = os.getenv('WEBHOOK_SECRET', 'CTF_SF25_LEDs_Secret')
-SATELLITE_COUNT = int(os.getenv('SATELLITE_COUNT', 5))  # Number of satellites
+SATELLITE_COUNT = int(os.getenv('SATELLITE_COUNT', 10))  # Number of satellites
 LEDS_PER_SATELLITE = int(os.getenv('LEDS_PER_SATELLITE', 2))  # Number of LEDs per satellite
 TOTAL_LED_COUNT = SATELLITE_COUNT * LEDS_PER_SATELLITE  # Total number of LEDs
 STATE_FILE = os.getenv('STATE_FILE', 'satellite_state.json')
